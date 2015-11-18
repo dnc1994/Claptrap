@@ -1,41 +1,7 @@
 import socket
 import struct
 import logging
-
-
-REQUEST = 0
-RESPONSE = 1
-REQUEST_PARAMS = {
-    'LOGIN': ['Username', 'Password'],
-    'LOGOUT': [],
-    'CREATE_ROOM': ['Room-Name'],
-    'LIST_ROOMS': [],
-    'LIST_MEMBERS': [],
-    'JOIN_ROOM': ['Room-Name'],
-    'LEAVE_ROOM': ['Room-Name'],
-    'SEND_MSG': ['Content-Length', 'Content'],
-    'RECV_MSG': []
-}
-REQUEST_METHODS = REQUEST_PARAMS.keys()
-RESPONSE_PARAMS = {
-    'RESP_LOGIN': ['Status'],
-    'BYEBYE': [],
-    'RESP_CREATE_ROOM': ['Status'],
-    'RESP_LIST_ROOMS': [],
-    'RESP_LIST_MEMBERS': [],
-    'RESP_JOIN_ROOM': [],
-    'SEE_YOU': [],
-    'RESP_SEND_MSG': ['Status'],
-    'NO_NEW_MSG': [],
-    'NEW_MSG': ['From', 'Time', 'Content-Length', 'Content']
-}
-RESPONSE_METHODS = RESPONSE_PARAMS.keys()
-PARSE_EXCEPTIONS = ['UNSUPPORTED_TYPE', 'BAD_METHOD', 'INCOMPLETE_PARAMS', 'CONTENT_LENGTH_MISMATCH']
-CONSTANTS = [(REQUEST_METHODS, REQUEST_PARAMS), (RESPONSE_METHODS, RESPONSE_PARAMS)]
-
-
-class ProtocolException(Exception):
-    pass
+from commons import *
 
 
 logger = logging.getLogger('chat')
@@ -44,6 +10,7 @@ logger = logging.getLogger('chat')
 # Receive $length bytes data from buffer
 def recv_all(sock, length):
     length = int(length)
+    print 'recv_all: expecting length = {0}'.format(length)
     data = ''
     received = 0
     while received < length:
@@ -54,6 +21,8 @@ def recv_all(sock, length):
             raise socket.error('Socket recv EOF')
         data += part
         received += len(part)
+        print 'recv_all: part = {0}'.format(part.replace('\n', '#'))
+        print 'recv_all: received = {0}'.format(received)
     return data
 
 
@@ -64,31 +33,30 @@ def recv_packet(sock):
         try:
             assert buff == 'CLAPTRAP'
         except:
-            raise ProtocolException
+            raise BadProtocolException
         buff = recv_all(sock, 4)
-        packet_length = struct.unpack('!I', buff)[0]
+        packet_length = struct.unpack('!I', buff)[0] - 12
         packet_data = recv_all(sock, packet_length)
     except socket.error as e:
         raise
-    return unpacketify(packet_data)
+    return packet_data
 
 
 # Pack data string into packet string
 def packetify(data):
+    # print 'packetifying data'
+    # print data
     length = len(data) + 12
     protocol = 'CLAPTRAP'
     length = struct.pack('!I', length)
     packet_data = protocol + length + data
+    # print packet_data
     return packet_data
-
-
-# Unpack packet string into data string
-def unpacketify(data):
-    return data[12:]
 
 
 # Parse data string into (methods, params)
 def parse(data, type):
+    'parsing data: {0}'.format(data.replace('\n', '#'))
     try:
         METHODS, PARAMS = CONSTANTS[type]
     except:
@@ -104,19 +72,33 @@ def parse(data, type):
     content = None
 
     for (index, line) in enumerate(lines[1:]):
-        if line == '\n':
+        if line == '':
             if 'Content' in required_params:
-                content = ''.join(lines[index+1:])
+                # remember content was splitted by \n
+                # and remember we start enumerating from 1
+                content = '\n'.join(lines[index+2:])
+                # print 'content after re-joining >>'
+                # print content.replace('\n', '#')
             break
+        # print 'split line: {0}'.format(line.strip().split(': '))
         (k, v) = line.strip().split(': ')
         params[k] = v
     params['Content'] = 'Placeholder'
 
+    print 'checking params'
+    print 'required params >>'
+    print required_params
+    print 'received params >>'
+    print params.keys()
     if required_params and (not all([params.has_key(rp) for rp in required_params])):
         return 'INCOMPLETE_PARAMS', None
 
     if 'Content' in required_params:
-        if not content or len(content) != params['Content-Length']:
+        if not content or (len(content) != int(params['Content-Length'])):
+            # print 'content length mismatch'
+            # print 'content >>'
+            # print content.replace('\n', '#')
+            # print len(content), '<->', params['Content-Length']
             return 'CONTENT_LENGTH_MISMATCH', None
         else:
             params['Content'] = content

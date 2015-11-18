@@ -5,6 +5,7 @@ import datetime
 import struct
 import logging
 import libchat
+from commons import *
 
 
 def get_server_time_obj():
@@ -26,7 +27,7 @@ class ChatServer(threading.Thread):
         self.ip = self.addr[0]
         self.username = ''
         self.current_room = ''
-        self.last_recv_msg = ''
+        self.last_recv_msg = None
         self.handlers = {
             'LOGIN': self.login,
             'LOGOUT': self.logout,
@@ -34,16 +35,26 @@ class ChatServer(threading.Thread):
             'LIST_ROOMS': self.list_rooms,
             'LIST_MEMBERS': self.list_members,
             'JOIN_ROOM': self.join_room,
-            'LEAVE_ROOM': self.leave_room,
+            'EXIT_ROOM': self.exit_room,
             'SEND_MSG': self.send_msg,
             'RECV_MSG': self.recv_msg
         }
 
     def send_resp(self, method, params=None, content=None):
+        print 'prepare to send response'
+        if 'Content' in RESPONSE_PARAMS[method]:
+            try:
+                assert params
+            except:
+                params = {}
+            assert content
+            params['Content-Length'] = len(content)
         resp = [method]
         resp += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
-        resp += '\n' + content if content else []
+        resp += (['\n{0}'.format(content)] if content else [])
         resp = '\n'.join(resp)
+        print 'resp >>'
+        print resp
         try:
             self.conn.sendall(libchat.packetify(resp))
         except socket.error as e:
@@ -57,84 +68,108 @@ class ChatServer(threading.Thread):
         username = params['Username']
         pass_digest = hashlib.sha1(params['Password']).hexdigest()
         if not accounts.has_key(username) or accounts[username]['password'] != pass_digest:
-            self.send_resp(method='GO_AWAY')
+            self.send_resp(method='RESP_LOGIN', params={'Status': 'AUTH_FAILED'})
         else:
-            self.send_resp(method='WELCOME')
+            self.send_resp(method='RESP_LOGIN', params={'Status': 'OK'})
             self.username = username
             clients[username] = self.conn
 
+    # todo: CLEAN UP
     def logout(self, params):
         global clients
-        self.send_resp(method='BYEBYE')
+        # remember to clean up
         clients.remove(self.username)
-        self.conn.close()
-        exit()
+        rooms[self.current_room]['members'].remove(self.username)
+        self.send_resp(method='RESP_LOGOUT', params={'Status': 'OK'})
+        # self.conn.close()
+        # exit()
 
     def create_room(self, params):
+        print 'creating room'
         global rooms
         room_name = params['Room-Name']
-        if rooms.has_key():
+        print room_name
+        if rooms.has_key(room_name):
             self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'ROOM_NAME_EXISTED'})
-            return
         else:
+            print 'room created'
             rooms[room_name] = {'members': [], 'messages': []}
+            self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'OK'})
 
-    def list_rooms(self):
+    def list_rooms(self, params):
+        print 'listing rooms'
         global rooms
         room_list = rooms.keys()
         content = '\n'.join([r + '\t' + str(len(rooms[r]['members'])) for r in room_list])
-        self.send_resp(method='RESP_LIST_ROOM', content=content)
+        print content
+        self.send_resp(method='RESP_LIST_ROOMS', params={'Status': 'OK'}, content=content)
 
-    def list_members(self):
+    def list_members(self, params):
         global rooms
-        room_name = self.current_room
-        member_list = rooms[room_name]['members']
+        member_list = rooms[self.current_room]['members']
         content = '\n'.join(member_list)
-        self.send_resp(method='RESP_LIST_MEMBERS', content=content)
+        self.send_resp(method='RESP_LIST_MEMBERS', params={'Status': 'OK'}, content=content)
 
     def join_room(self, params):
+        # print 'joining rooms'
         global rooms
-        room_name = params['Root-Name']
+        # print params
+        room_name = params['Room-Name']
+        # print room_name
         if not rooms.has_key(room_name):
             self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'NO_SUCH_ROOM'})
-        rooms[room_name]['members'].append(self.username)
-        self.current_room = room_name
-        self.last_recv_msg = get_server_time_obj()
+        else:
+            print 'adding to member list'
+            rooms[room_name]['members'].append(self.username)
+            self.current_room = room_name
+            self.last_recv_msg = get_server_time_obj()
+            self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'OK'})
 
-    def leave_room(self, params):
+    def exit_room(self, params):
         global rooms
-        room_name = self.current_room
-        rooms[room_name]['members'].remove(self.username)
-        self.current_room = ''
-        self.send_resp(method='SEE_YOU')
+        if self.current_room == '':
+            self.send_resp(method='RESP_EXIT_ROOM', params={'Status': 'NOT_IN_ROOM'})
+        else:
+            rooms[self.current_room]['members'].remove(self.username)
+            self.current_room = ''
+            self.send_resp(method='RESP_EXIT_ROOM', params={'Status': 'OK'})
 
     def send_msg(self, params):
+        print 'sending message'
         global rooms
         room_name = self.current_room
-        message = params['Message']
+        print room_name
+        message = params['Content']
+        print message
         rooms[room_name]['messages'].append({'From': self.username, 'Time': get_server_time_obj(), 'Message': message})
         self.send_resp(method='RESP_SEND_MSG', params={'Status': 'OK'})
 
     def recv_msg(self, params):
         global rooms
+        if self.current_room == '':
+            self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_IN_ROOM'})
         room_name = self.current_room
+        print 'room name = {0}'.format(room_name)
+        print '#messages = {0}'.format(len(rooms[room_name]['messages']))
         messages = []
         for index in reversed(range(len(rooms[room_name]['messages']))):
             msg = rooms[room_name]['messages'][index]
+            print 'message time: {0}'.format(msg['Time'])
+            print 'last recv time: {0}'.format(self.last_recv_msg)
             if msg['Time'] < self.last_recv_msg:
+                print 'break'
                 break
-            messages = msg + messages
+            messages = [msg] + messages
+        print 'wa'
         if not messages:
-            self.send_resp(method='NO_NEW_MSG')
+            self.send_resp(method='NO_NEW_MSG', params={'Status': 'NO_NEW_MSG'})
         content = '\t\t'.join(['{0}\t{1}\t{2}'.format(m['From'], m['Time'].ctime(), m['Message']) for m in messages])
-        self.send_resp(method='NEW_MSG', content=content)
+        self.send_resp(method='NEW_MSG', params={'Status': 'OK'}, content=content)
 
-    def dispatch(self, request):
-        print request
-
-    def _dispatch(self, request):
-        method, params = libchat.parse(request, libchat.REQUEST)
-        if method in libchat.PARSE_EXCEPTIONS:
+    def dispatch(self, req):
+        method, params = req
+        print 'dispatching request: {0}'.format(method)
+        if method in PARSE_EXCEPTIONS:
             raise
         self.handlers[method](params)
         # todo: write to db
@@ -142,15 +177,22 @@ class ChatServer(threading.Thread):
     def start(self):
         while True:
             packet_data = libchat.recv_packet(self.conn)
-            self.dispatch(packet_data)
+            self.dispatch(libchat.parse(packet_data, libchat.REQUEST))
 
 
-
-def init_accounts():
+def init_globals():
     global accounts
-    users = {'root': 'claptrap', 'xiaoming': '123', 'xiaohong': '123', 'xiaowang': '123'}
-    for (u, p) in users.iteritems():
-        accounts[u] = hashlib.sha1(p).hexdigest()
+    global rooms
+    _accounts = {'root': 'claptrap', 'xiaoming': '123', 'xiaohong': '123', 'xiaowang': '123'}
+    for (u, p) in _accounts.iteritems():
+        accounts[u] = {}
+        accounts[u]['password'] = hashlib.sha1(p).hexdigest()
+
+    _rooms = ['test1', 'test2', 'test3']
+    for r in _rooms:
+        rooms[r] = {}
+        rooms[r]['members'] = ['root']
+        rooms[r]['messages'] = []
 
 
 def main():
@@ -162,7 +204,7 @@ def main():
     rooms = {}
 
     # todo: load from db
-    init_accounts()
+    init_globals()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -174,7 +216,10 @@ def main():
             server = ChatServer(conn, addr)
             server.start()
         except Exception as e:
-            raise
+            try:
+                server.logout(None)
+            except:
+                pass
 
 if __name__ == '__main__':
     try:

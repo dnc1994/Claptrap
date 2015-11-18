@@ -2,6 +2,7 @@ import socket
 import struct
 import logging
 import libchat
+from commons import *
 
 
 logger = logging.getLogger('chat.client')
@@ -23,7 +24,7 @@ class ChatClient(object):
             'LIST_ROOMS': self.list_rooms,
             'LIST_MEMBERS': self.list_members,
             'JOIN_ROOM': self.join_room,
-            'LEAVE_ROOM': self.leave_room,
+            'EXIT_ROOM': self.exit_room,
             'SEND_MSG': self.send_msg,
             'RECV_MSG': self.recv_msg
         }
@@ -31,9 +32,17 @@ class ChatClient(object):
             self.loop()
 
     def send_req(self, method, params=None, content=None):
+        print 'prepare to send request'
+        if 'Content' in REQUEST_PARAMS[method]:
+            try:
+                assert params
+            except:
+                params = {}
+            assert content
+            params['Content-Length'] = len(content)
         req = [method]
         req += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
-        req += '\n' + content if content else []
+        req += ['\n{0}'.format(content)] if content else []
         req = '\n'.join(req)
         try:
             self.sock.sendall(libchat.packetify(req))
@@ -43,53 +52,73 @@ class ChatClient(object):
         return libchat.parse(resp, libchat.RESPONSE)
 
     def login(self, username, password):
-        resp = self.send_req(method='LOGIN', params={'Username': username, 'Password': password})
-        if resp[0] == 'WELCOME':
+        print 'login: {0}:{1}'.format(username, password)
+        method, params = self.send_req(method='LOGIN', params={'Username': username, 'Password': password})
+        print 'response:', method, params
+        assert method == 'RESP_LOGIN'
+        if params['Status'] == 'OK':
             self.logined = True
-        elif resp[0] == 'GO_AWAY':
+        elif params['Status'] == 'AUTH_FAILED':
             pass
         else:
-            raise
+            raise BadStatusException
 
     def logout(self):
-        resp = self.send_req(method='LOGOUT')
-        assert resp[0] == 'OK'
+        method, params = self.send_req(method='LOGOUT')
+        assert method == 'RESP_LOGOUT'
+        assert params['Status'] == 'OK'
 
     def create_room(self, room_name):
-        resp = self.send_req(method='CREATE_ROOM', params={'Root-Name': room_name})
-        assert resp[1]['Status'] == 'OK'
+        method, params = self.send_req(method='CREATE_ROOM', params={'Room-Name': room_name})
+        assert method == 'RESP_CREATE_ROOM'
+        assert params['Status'] == 'OK'
 
     def list_rooms(self):
-        resp = self.send_req(method='LIST_ROOMS')
-        room_list = resp[1]['Content'].split('\n')
+        method, params = self.send_req(method='LIST_ROOMS')
+        print 'client -> list_rooms -> resp >>'
+        print method, params
+        assert method == 'RESP_LIST_ROOMS'
+        assert params['Status'] == 'OK'
+        room_list = params['Content'].split('\n')
+        return room_list
 
     def list_members(self):
-        resp = self.send_req(method='LIST_MEMBERS')
-        room_list = resp[1]['Content'].split('\n')
+        method, params = self.send_req(method='LIST_MEMBERS')
+        assert method == 'RESP_LIST_MEMBERS'
+        assert params['Status'] == 'OK'
+        member_list = params['Content'].split('\n')
+        return member_list
 
     def join_room(self, room_name):
-        resp = self.send_req(method='JOIN_ROOM', params={'Root-Name': room_name})
-        assert resp[0] == 'RESP_JOIN_ROOM'
-        assert resp[1]['Status'] == 'OK'
+        method, params = self.send_req(method='JOIN_ROOM', params={'Room-Name': room_name})
+        assert method == 'RESP_JOIN_ROOM'
+        assert params['Status'] == 'OK'
 
-    def leave_room(self, room_name):
-        resp = self.send_req(method='LEAVE_ROOM')
-        assert resp[0] == 'SEE_YOU'
+    def exit_room(self):
+        method, params = self.send_req(method='EXIT_ROOM')
+        assert method == 'RESP_EXIT_ROOM'
+        assert params['Status'] == 'OK'
 
     def send_msg(self, message):
         # escape \t because later will use \t to split message attributes
         message = message.replace('\t', '    ')
-        resp = self.send_req(method='SEND_MSG', params={'Message': message})
-        assert resp[1]['Status'] == 'OK'
+        method, params = self.send_req(method='SEND_MSG', content=message)
+        assert method == 'RESP_SEND_MSG'
+        assert params['Status'] == 'OK'
 
     def recv_msg(self):
-        resp = self.send_req(method='RECV_MSG')
-        if resp[0] == 'NO_NEW_MSG':
-            pass
+        method, params = self.send_req(method='RECV_MSG')
+        print 'method = {0}'.format(method)
+        if method == 'NO_NEW_MSG':
+            return None
+        elif method == 'NEW_MSG':
+            messages = params['Content'].split('\t\t')
+            return messages
         else:
-            messages = resp[1]['Content'].split('\t\t')
+            raise BadMethodException
 
     def dispatch(self, event):
+        print 'dispatching event: {0}'.format(event)
         self.handlers[event]()
 
     def loop(self):
@@ -98,9 +127,58 @@ class ChatClient(object):
             event = ''
             self.dispatch(event)
 
-def main():
+
+def test():
     client = ChatClient()
+
+    print 'test login'
     client.login('xiaoming', '123')
+    print '======================='
+
+    print 'test list_rooms'
+    room_list = client.list_rooms()
+    print '======================='
+
+    print 'test join_room'
+    room = room_list[0].split('\t')[0]
+    client.join_room(room)
+    print '======================='
+
+    print 'test exit_room'
+    client.exit_room()
+    print '======================='
+
+    # print 'test join wrong room'
+    # client.join_room('excited')
+    # print '======================='
+
+    # print 'test double exit_room'
+    # client.exit_room()
+    # print '======================='
+
+    # print 'test create_room'
+    # client.create_room('excited')
+    # print client.list_rooms()
+    # print '======================='
+
+    print 'test list_member'
+    client.join_room('test1')
+    member_list = client.list_members()
+    print member_list
+    print '======================='
+
+    # print 'test double creatie_room'
+    # client.create_room('excited')
+    # print '======================='
+
+    print 'test send messages'
+    client.send_msg('Hello world!')
+    print '======================='
+
+    print 'test receiving messages'
+    msg_list = client.recv_msg()
+    print msg_list
+    print '======================='
 
 if __name__ == '__main__':
-    main()
+    test()

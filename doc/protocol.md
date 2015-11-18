@@ -1,26 +1,74 @@
 # Claptrap chatting protocol
 
-## Enter a chatroom
-Method: JOIN_ROOM
-From: $Username
-To: $Room
-Time: $Time
+## Client
 
-## Leave a chatroom
-Method: LEAVE_ROOM
-From: $Username
-To: $Room
-Time: $Time
+## Login
+LOGIN
+User: $Username
+Pass: $Password
 
-## Send
-Method: SEND_MSG
-From: $Username
-To: $Username / $Root
-Time: $Time
-Content-Length: $Length
+### Create a room
+CREATE_ROOM
+Room-Name: ...
 
-Text
+### Enter a room
+JOIN_ROOM
+Room-Name: ...
 
-## Receive
-Method: RECV_MSG
-From: $Username
+### Leave a room
+LEAVE_ROOM
+Room-Name: ...
+
+### Send
+SEND_MSG
+To: (User/Room)
+Content-Length: ...
+
+...
+
+### Receive
+RECV_MSG
+
+## Server
+
+## Response to successful login
+RESP_LOGIN
+Status: OK / AUTH_FAILED
+
+## Response to logout
+RESP_LOGOUT
+Status: OK
+
+## Response to room creation
+RESP_CREATE_ROOM
+Status: OK / ROOM_NAME_EXISTED
+
+## Response to room listing
+RESP_LIST_ROOM
+Status: OK
+Name    members
+...
+...
+
+## Response to room entry
+RESP_JOIN_ROOM
+Status: OK / NO_SUCH_ROOM / (NO_PRIVILEGE)
+
+## Response to room exit
+RESP_EXIT_ROOM
+Status: OK
+
+## Response to message sending
+RESP_SEND_MSG
+Status: OK
+
+## Response to message receiving
+NO_NEW_MSG
+Status: NOT_IN_ROOM / NO_NEW_MSG
+
+or
+
+NEW_MSG
+
+$From\t$Time\t$Content-Length\t\t
+
