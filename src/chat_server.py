@@ -2,7 +2,6 @@ import socket
 import threading
 import hashlib
 import datetime
-import struct
 import logging
 import libchat
 from commons import *

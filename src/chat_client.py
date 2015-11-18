@@ -1,5 +1,4 @@
 import socket
-import struct
 import logging
 import libchat
 from commons import *

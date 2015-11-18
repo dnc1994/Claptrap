@@ -11,17 +11,21 @@ Pass: $Password
 CREATE_ROOM
 Room-Name: ...
 
+### List all rooms
+LIST_ROOMS
+
+### List all members of the current room
+LIST_MEMBERS
+
 ### Enter a room
 JOIN_ROOM
 Room-Name: ...
 
-### Leave a room
-LEAVE_ROOM
-Room-Name: ...
+### Exit a room
+Exit_ROOM
 
 ### Send
 SEND_MSG
-To: (User/Room)
 Content-Length: ...
 
 ...
@@ -71,4 +75,3 @@ or
 NEW_MSG
 
 $From\t$Time\t$Content-Length\t\t
-
