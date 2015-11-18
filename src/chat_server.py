@@ -2,11 +2,20 @@ import socket
 import threading
 import hashlib
 import datetime
+import struct
+import logging
 import libchat
 
 
 def get_server_time_obj():
     return datetime.datetime.now()
+
+
+logger = logging.getLogger('chat.server')
+
+HOST = ''
+PORT = 6666
+BUFF_SIZE = 1024
 
 
 class ChatServer(threading.Thread):
@@ -35,7 +44,11 @@ class ChatServer(threading.Thread):
         resp += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
         resp += '\n' + content if content else []
         resp = '\n'.join(resp)
-        self.conn.send(resp)
+        try:
+            self.conn.sendall(libchat.packetify(resp))
+        except socket.error as e:
+            logger.critical('Send response error: %s', e)
+            raise
 
     # todo: sign up
     def login(self, params):
@@ -113,28 +126,30 @@ class ChatServer(threading.Thread):
             messages = msg + messages
         if not messages:
             self.send_resp(method='NO_NEW_MSG')
-        for message in messages:
-            content = message['Message']
-            message.remove('Message')
-            self.send_resp(method='NEW_MSG', params=message, content=content)
+        content = '\t\t'.join(['{0}\t{1}\t{2}'.format(m['From'], m['Time'].ctime(), m['Message']) for m in messages])
+        self.send_resp(method='NEW_MSG', content=content)
 
     def dispatch(self, request):
-        (method, params) = libchat.parse(request, libchat.REQUEST)
+        print request
+
+    def _dispatch(self, request):
+        method, params = libchat.parse(request, libchat.REQUEST)
         if method in libchat.PARSE_EXCEPTIONS:
-            # todo: logging
-            return
+            raise
         self.handlers[method](params)
         # todo: write to db
 
+    def start(self):
+        while True:
+            packet_data = libchat.recv_packet(self.conn)
+            self.dispatch(packet_data)
 
-HOST = ''
-PORT = 6666
 
 
 def init_accounts():
     global accounts
     users = {'root': 'claptrap', 'xiaoming': '123', 'xiaohong': '123', 'xiaowang': '123'}
-    for (u, p) in users:
+    for (u, p) in users.iteritems():
         accounts[u] = hashlib.sha1(p).hexdigest()
 
 
@@ -142,11 +157,12 @@ def main():
     global accounts
     global clients
     global rooms
+    accounts = {}
+    clients = {}
+    rooms = {}
 
     # todo: load from db
     init_accounts()
-    clients = {}
-    rooms = {}
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -158,7 +174,7 @@ def main():
             server = ChatServer(conn, addr)
             server.start()
         except Exception as e:
-            print e
+            raise
 
 if __name__ == '__main__':
     try:
