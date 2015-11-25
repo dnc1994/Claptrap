@@ -85,11 +85,11 @@ def parse(data, type):
         params[k] = v
     params['Content'] = 'Placeholder'
 
-    print 'checking params'
-    print 'required params >>'
-    print required_params
-    print 'received params >>'
-    print params.keys()
+    # print 'checking params'
+    # print 'required params >>'
+    # print required_params
+    # print 'received params >>'
+    # print params.keys()
     if required_params and (not all([params.has_key(rp) for rp in required_params])):
         return 'INCOMPLETE_PARAMS', None
 

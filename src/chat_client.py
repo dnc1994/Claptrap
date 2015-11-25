@@ -31,7 +31,6 @@ class ChatClient(object):
             self.loop()
 
     def send_req(self, method, params=None, content=None):
-        print 'prepare to send request'
         if 'Content' in REQUEST_PARAMS[method]:
             try:
                 assert params
@@ -43,6 +42,8 @@ class ChatClient(object):
         req += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
         req += ['\n{0}'.format(content)] if content else []
         req = '\n'.join(req)
+        print 'req >>'
+        print req
         try:
             self.sock.sendall(libchat.packetify(req))
         except socket.error as e:
@@ -57,8 +58,9 @@ class ChatClient(object):
         assert method == 'RESP_LOGIN'
         if params['Status'] == 'OK':
             self.logined = True
+            return True
         elif params['Status'] == 'AUTH_FAILED':
-            pass
+            return False
         else:
             raise BadStatusException
 

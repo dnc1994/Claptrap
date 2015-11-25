@@ -18,9 +18,17 @@ PORT = 6666
 BUFF_SIZE = 1024
 
 
+server_count = 0
+
+
 class ChatServer(threading.Thread):
     def __init__(self, conn, addr):
         super(ChatServer, self).__init__()
+
+        global  server_count
+        server_count += 1
+        print 'server #%d started' % (server_count)
+
         self.conn = conn
         self.addr = addr
         self.ip = self.addr[0]
@@ -40,7 +48,7 @@ class ChatServer(threading.Thread):
         }
 
     def send_resp(self, method, params=None, content=None):
-        print 'prepare to send response'
+        # print 'prepare to send response'
         if 'Content' in RESPONSE_PARAMS[method]:
             try:
                 assert params
@@ -84,10 +92,9 @@ class ChatServer(threading.Thread):
         # exit()
 
     def create_room(self, params):
-        print 'creating room'
         global rooms
         room_name = params['Room-Name']
-        print room_name
+        print 'creating room' + room_name
         if rooms.has_key(room_name):
             self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'ROOM_NAME_EXISTED'})
         else:
@@ -137,6 +144,7 @@ class ChatServer(threading.Thread):
         print 'sending message'
         global rooms
         room_name = self.current_room
+        assert room_name
         print room_name
         message = params['Content']
         print message
@@ -156,13 +164,16 @@ class ChatServer(threading.Thread):
             print 'message time: {0}'.format(msg['Time'])
             print 'last recv time: {0}'.format(self.last_recv_msg)
             if msg['Time'] < self.last_recv_msg:
-                print 'break'
+                print 'scrolling message break'
                 break
             messages = [msg] + messages
-        print 'wa'
+        print '{0} new message'.format(len(messages))
+        print messages
         if not messages:
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NO_NEW_MSG'})
         content = '\t\t'.join(['{0}\t{1}\t{2}'.format(m['From'], m['Time'].ctime(), m['Message']) for m in messages])
+        print content
+        self.last_recv_msg = get_server_time_obj()
         self.send_resp(method='NEW_MSG', params={'Status': 'OK'}, content=content)
 
     def dispatch(self, req):
@@ -208,17 +219,22 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((HOST, PORT))
+    # sock.setblocking(0)
     sock.listen(5)
     while True:
         try:
             conn, addr = sock.accept()
+            print 'incoming client'
+            print conn, addr
             server = ChatServer(conn, addr)
             server.start()
         except Exception as e:
             try:
                 server.logout(None)
+                raise e
             except:
                 pass
+
 
 if __name__ == '__main__':
     try:
@@ -226,3 +242,5 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print 'Server terminating...'
+    except Exception:
+        raise Exception
