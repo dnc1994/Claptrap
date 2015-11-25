@@ -94,6 +94,7 @@ class ChatClient(object):
         method, params = self.send_req(method='JOIN_ROOM', params={'Room-Name': room_name})
         assert method == 'RESP_JOIN_ROOM'
         assert params['Status'] == 'OK'
+        self.current_room = room_name
 
     def exit_room(self):
         method, params = self.send_req(method='EXIT_ROOM')
