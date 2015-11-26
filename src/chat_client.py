@@ -1,10 +1,8 @@
+# -*- encoding:utf-8 -*-
 import socket
-import logging
 import libchat
 from commons import *
 
-
-logger = logging.getLogger('chat.client')
 
 HOST = '127.0.0.1'
 PORT = 6666
@@ -51,8 +49,22 @@ class ChatClient(object):
         resp = libchat.recv_packet(self.sock)
         return libchat.parse(resp, libchat.RESPONSE)
 
+    # all methods below must encoding string in utf-8 before transmission
+    def encode_string(self, string):
+        try:
+            return string.encode('utf-8')
+        except:
+            return string
+
+    def decode_string(self, string):
+        try:
+            return string.decode('utf-8')
+        except:
+            return string
+
     def login(self, username, password):
-        print 'login: {0}:{1}'.format(username, password)
+        username = self.encode_string(username)
+        print 'login: ' + username + ': ' + password
         method, params = self.send_req(method='LOGIN', params={'Username': username, 'Password': password})
         print 'response:', method, params
         assert method == 'RESP_LOGIN'
@@ -70,6 +82,7 @@ class ChatClient(object):
         assert params['Status'] == 'OK'
 
     def create_room(self, room_name):
+        room_name = self.encode_string(room_name)
         method, params = self.send_req(method='CREATE_ROOM', params={'Room-Name': room_name})
         assert method == 'RESP_CREATE_ROOM'
         assert params['Status'] == 'OK'
@@ -80,17 +93,18 @@ class ChatClient(object):
         print method, params
         assert method == 'RESP_LIST_ROOMS'
         assert params['Status'] == 'OK'
-        room_list = params['Content'].split('\n')
+        room_list = map(self.decode_string, params['Content'].split('\n'))
         return room_list
 
     def list_members(self):
         method, params = self.send_req(method='LIST_MEMBERS')
         assert method == 'RESP_LIST_MEMBERS'
         assert params['Status'] == 'OK'
-        member_list = params['Content'].split('\n')
+        member_list = map(self.decode_string, params['Content'].split('\n'))
         return member_list
 
     def join_room(self, room_name):
+        room_name = self.encode_string(room_name)
         method, params = self.send_req(method='JOIN_ROOM', params={'Room-Name': room_name})
         assert method == 'RESP_JOIN_ROOM'
         assert params['Status'] == 'OK'
@@ -102,6 +116,7 @@ class ChatClient(object):
         assert params['Status'] == 'OK'
 
     def send_msg(self, message):
+        message = self.encode_string(message)
         # escape \t because later will use \t to split message attributes
         message = message.replace('\t', '    ')
         method, params = self.send_req(method='SEND_MSG', content=message)
@@ -114,7 +129,7 @@ class ChatClient(object):
         if method == 'NO_NEW_MSG':
             return None
         elif method == 'NEW_MSG':
-            messages = params['Content'].split('\t\t')
+            messages = map(self.decode_string, params['Content'].split('\t\t'))
             return messages
         else:
             raise BadMethodException

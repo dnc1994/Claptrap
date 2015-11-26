@@ -1,9 +1,9 @@
+# -*- encoding:utf-8 -*-
 import socket
 import threading
 import select
 import hashlib
 import datetime
-import logging
 import libchat
 from commons import *
 
@@ -11,8 +11,6 @@ from commons import *
 def get_server_time_obj():
     return datetime.datetime.now()
 
-
-logger = logging.getLogger('chat.server')
 
 HOST = ''
 PORT = 6666
@@ -50,7 +48,7 @@ class ChatServer(threading.Thread):
         }
 
     def send_resp(self, method, params=None, content=None):
-        # print 'prepare to send response'
+        print 'prepare to send response: ' + method
         if 'Content' in RESPONSE_PARAMS[method]:
             try:
                 assert params
@@ -67,7 +65,6 @@ class ChatServer(threading.Thread):
         try:
             self.conn.sendall(libchat.packetify(resp))
         except socket.error as e:
-            logger.critical('Send response error: %s', e)
             raise
 
     # todo: sign up
@@ -123,9 +120,7 @@ class ChatServer(threading.Thread):
     def join_room(self, params):
         # print 'joining rooms'
         global rooms
-        # print params
         room_name = params['Room-Name']
-        # print room_name
         if not rooms.has_key(room_name):
             self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'NO_SUCH_ROOM'})
         else:
@@ -174,6 +169,7 @@ class ChatServer(threading.Thread):
         print messages
         if not messages:
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NO_NEW_MSG'})
+            return
         content = '\t\t'.join(['{0}\t{1}\t{2}'.format(m['From'], m['Time'].ctime(), m['Message']) for m in messages])
         print content
         self.last_recv_msg = get_server_time_obj()
@@ -181,7 +177,7 @@ class ChatServer(threading.Thread):
 
     def dispatch(self, req):
         method, params = req
-        print 'dispatching request: {0}'.format(method)
+        print '\ndispatching request: {0}'.format(method)
         if method in PARSE_EXCEPTIONS:
             raise
         self.handlers[method](params)
@@ -202,15 +198,24 @@ class ChatServer(threading.Thread):
             except:
                 return
 
+
 def init_globals():
     global accounts
     global rooms
-    _accounts = {'root': 'claptrap', 'xiaoming': '123', 'xiaohong': '123', 'xiaowang': '123'}
+    _accounts = {'root': 'claptrap',
+                 'xiaoming': '123',
+                 'xiaohong': '123',
+                 'xiaowang': '123',
+                 u'江主席'.encode('utf-8'): '123',
+                 u'张宝华'.encode('utf-8'): '123'
+    }
     for (u, p) in _accounts.iteritems():
         accounts[u] = {}
         accounts[u]['password'] = hashlib.sha1(p).hexdigest()
 
-    _rooms = ['test1', 'test2', 'test3']
+    _rooms = ['test_room',
+              u'香港记者招待会'.encode('utf-8')
+    ]
     for r in _rooms:
         rooms[r] = {}
         rooms[r]['members'] = ['root']

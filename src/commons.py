@@ -1,3 +1,4 @@
+# -*- encoding:utf-8 -*-
 REQUEST = 0
 RESPONSE = 1
 REQUEST_PARAMS = {

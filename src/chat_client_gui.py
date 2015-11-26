@@ -1,3 +1,4 @@
+# -*- encoding:utf-8 -*-
 import sys
 from PyQt4 import QtGui
 from chat_client import ChatClient
