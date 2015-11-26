@@ -8,10 +8,10 @@ from chat_window import ChatWindow
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
-    client = ChatClient()
-    chat_window = ChatWindow(client)
+    chat_window = ChatWindow()
 
-    if LoginDialog(client).exec_() == QtGui.QDialog.Accepted:
-        chat_window.update_display()
+    if LoginDialog(chat_window).exec_() == QtGui.QDialog.Accepted:
+        print 'login OK, show UI'
+        chat_window.init_ui()
         chat_window.show()
         sys.exit(app.exec_())

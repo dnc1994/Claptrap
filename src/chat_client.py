@@ -5,12 +5,15 @@ from commons import *
 
 
 HOST = '127.0.0.1'
-PORT = 6666
+PORT = '6666'
 BUF_SIZE = 1024
 
 class ChatClient(object):
-    def __init__(self, host=HOST, port=PORT, gui=False):
+    def __init__(self, host=HOST, port=PORT):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        host = str(host)
+        port = int(port)
+        print 'connect to {0}:{1}'.format(host, port)
         self.sock.connect((host, port))
         self.logined = False
         self.current_room = ''
@@ -25,8 +28,6 @@ class ChatClient(object):
             'SEND_MSG': self.send_msg,
             'RECV_MSG': self.recv_msg
         }
-        if gui:
-            self.loop()
 
     def send_req(self, method, params=None, content=None):
         if 'Content' in REQUEST_PARAMS[method]:
@@ -64,7 +65,6 @@ class ChatClient(object):
 
     def login(self, username, password):
         username = self.encode_string(username)
-        print 'login: ' + username + ': ' + password
         method, params = self.send_req(method='LOGIN', params={'Username': username, 'Password': password})
         print 'response:', method, params
         assert method == 'RESP_LOGIN'

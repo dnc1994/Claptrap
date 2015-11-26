@@ -108,6 +108,8 @@ class ChatServer(threading.Thread):
         global rooms
         room_list = rooms.keys()
         content = '\n'.join([r + '\t' + str(len(rooms[r]['members'])) for r in room_list])
+        for r in room_list:
+            print len(rooms[r]['members'])
         print content
         self.send_resp(method='RESP_LIST_ROOMS', params={'Status': 'OK'}, content=content)
 
@@ -154,6 +156,7 @@ class ChatServer(threading.Thread):
         global rooms
         if self.current_room == '':
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_IN_ROOM'})
+            return
         room_name = self.current_room
         print 'room name = {0}'.format(room_name)
         messages = []
@@ -202,6 +205,7 @@ class ChatServer(threading.Thread):
 def init_globals():
     global accounts
     global rooms
+
     _accounts = {'root': 'claptrap',
                  'xiaoming': '123',
                  'xiaohong': '123',
