@@ -1,5 +1,6 @@
 import socket
 import threading
+import select
 import hashlib
 import datetime
 import logging
@@ -32,6 +33,7 @@ class ChatServer(threading.Thread):
         self.conn = conn
         self.addr = addr
         self.ip = self.addr[0]
+        self.logined = False
         self.username = ''
         self.current_room = ''
         self.last_recv_msg = None
@@ -79,17 +81,19 @@ class ChatServer(threading.Thread):
         else:
             self.send_resp(method='RESP_LOGIN', params={'Status': 'OK'})
             self.username = username
-            clients[username] = self.conn
+            clients[username] = self.username
+            self.logined = True
 
     # todo: CLEAN UP
     def logout(self, params):
+        print 'prepare to logout'
+        if not self.logined:
+            return
         global clients
-        # remember to clean up
-        clients.remove(self.username)
+        global rooms
+        del clients[self.username]
         rooms[self.current_room]['members'].remove(self.username)
         self.send_resp(method='RESP_LOGOUT', params={'Status': 'OK'})
-        # self.conn.close()
-        # exit()
 
     def create_room(self, params):
         global rooms
@@ -157,7 +161,6 @@ class ChatServer(threading.Thread):
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_IN_ROOM'})
         room_name = self.current_room
         print 'room name = {0}'.format(room_name)
-        print '#messages = {0}'.format(len(rooms[room_name]['messages']))
         messages = []
         for index in reversed(range(len(rooms[room_name]['messages']))):
             msg = rooms[room_name]['messages'][index]
@@ -184,11 +187,20 @@ class ChatServer(threading.Thread):
         self.handlers[method](params)
         # todo: write to db
 
-    def start(self):
+    def run(self):
         while True:
-            packet_data = libchat.recv_packet(self.conn)
-            self.dispatch(libchat.parse(packet_data, libchat.REQUEST))
-
+            try:
+                try:
+                    read_sockets, write_sockets, error_sockets = select.select([self.conn],[],[])
+                    if len(read_sockets) > 0:
+                        packet_data = libchat.recv_packet(self.conn)
+                        self.dispatch(libchat.parse(packet_data, libchat.REQUEST))
+                except:
+                    print 'disconnected.'
+                    self.logout(None)
+                    return
+            except:
+                return
 
 def init_globals():
     global accounts
@@ -216,24 +228,22 @@ def main():
     # todo: load from db
     init_globals()
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((HOST, PORT))
-    # sock.setblocking(0)
-    sock.listen(5)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind((HOST, PORT))
+    server_socket.listen(5)
+
+    CONNECTION_LIST = []
+    CONNECTION_LIST.append(server_socket)
+
     while True:
-        try:
-            conn, addr = sock.accept()
-            print 'incoming client'
-            print conn, addr
-            server = ChatServer(conn, addr)
-            server.start()
-        except Exception as e:
-            try:
-                server.logout(None)
-                raise e
-            except:
-                pass
+        read_sockets, write_sockets, error_sockets = select.select(CONNECTION_LIST,[],[])
+        for sock in read_sockets:
+            if sock == server_socket:
+                conn, addr = server_socket.accept()
+                CONNECTION_LIST.append(conn)
+                server = ChatServer(conn, addr)
+                server.start()
 
 
 if __name__ == '__main__':
@@ -242,5 +252,3 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print 'Server terminating...'
-    except Exception:
-        raise Exception

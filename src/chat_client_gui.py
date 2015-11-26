@@ -11,5 +11,6 @@ if __name__ == '__main__':
     chat_window = ChatWindow(client)
 
     if LoginDialog(client).exec_() == QtGui.QDialog.Accepted:
+        chat_window.update_display()
         chat_window.show()
         sys.exit(app.exec_())
