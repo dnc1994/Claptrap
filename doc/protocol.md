@@ -1,77 +1,85 @@
-# Claptrap chatting protocol
+# Claptrap Protocol
 
-## Client
+## Overview
 
-## Login
-LOGIN
-User: $Username
-Pass: $Password
+Claptrap 是应用层的字符串协议，每个包由 12 字节的 Header 和不定长度的 Payload 组成。
 
-### Create a room
-CREATE_ROOM
-Room-Name: ...
+所有字符以 UTF-8 编码。
 
-### List all rooms
-LIST_ROOMS
+## Header
 
-### List all members of the current room
-LIST_MEMBERS
+Header 由 8 个字节的 CLAPTRAP （协议标识）和 4 个字节的 `Packet-Length` 组成。
 
-### Enter a room
-JOIN_ROOM
-Room-Name: ...
+## Payload
 
-### Exit a room
-Exit_ROOM
+Payload 基本格式如下：
 
-### Send
-SEND_MSG
-Content-Length: ...
+    Method
+    Parameter0: Value 0
+    Parameter1: Value 1
+    ...
+    /n
+    Content
 
-...
+也就是第一行指定协议方法，接下来若干行指定一系列参数，再间隔一个空行后是内容域。
 
-### Receive
-RECV_MSG
+所有带有内容域的包均有 Content-Length 参数来验证长度。
 
-## Server
+### Client
 
-## Response to successful login
-RESP_LOGIN
-Status: OK / AUTH_FAILED
+| Request Method | Description | Parameters | Content | Possible Response Methods |
+| -------------- | ----------- | ---------- | ------- | --------------- |
+| LOGIN | 用户登陆 | {Username, Password} | None | RESP_LOGIN |
+| LOGOUT | 用户注销 | None | None | RESP_LOGOUT |
+| LIST_ROOMS | 获取房间列表 | {Room-Name} | None | RESP_LIST_ROOMS |
+| LIST_MEMBERS | 获取当前房间用户列表 | None | None | RESP_LIST_MEMBERS |
+| JOIN_ROOM | 进入房间 | {Room-Name} | None | RESP_JOIN_ROOM |
+| EXIT_ROOM | 退出房间 | None | None | RESP_EXIT_ROOM |
+| SEND_MSG | 发送消息 | {Content-Length} | Message | RESP_SEND_MSG |
+| RECV_MSG | 接收消息 | None | None | NO_NEW_MSG / NEW_MSG |
 
-## Response to logout
-RESP_LOGOUT
-Status: OK
+### Server
 
-## Response to room creation
-RESP_CREATE_ROOM
-Status: OK / ROOM_NAME_EXISTED
+| Response Method | Possible Status | Parameters | Content |
+| --------------- | --------------- | ---------- | ------- |
+| RESP_LOGIN | OK / AUTH_FAILED | {Status} | None |
+| RESP_LOGOUT | OK | {Status} | None |
+| RESP_LIST_ROOMS | OK | {Status, Content-Length} | Rooms |
+| RESP_LIST_MEMBERS | OK / NOT_IN_ROOM | {Status, Content-Length} | Members |
+| RESP_JOIN_ROOM | OK / NO_SUCH_ROOM | {Status} | None |
+| RESP_EXIT_ROOM | OK / NOT_IN_ROOM | {Status} | None |
+| RESP_SEND_MSG | OK / NOT_IN_ROOM | {Status} | None |
+| NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG | None |
+| NEW_MSG | OK | {Status, Content-Length} | Messages |
 
-## Response to room listing
-RESP_LIST_ROOM
-Status: OK
-Name    members
-...
-...
+### Content Formats
 
-## Response to room entry
-RESP_JOIN_ROOM
-Status: OK / NO_SUCH_ROOM / (NO_PRIVILEGE)
+下面列出所有内容域的格式：
 
-## Response to room exit
-RESP_EXIT_ROOM
-Status: OK
+#### SEND_MSG > Message
 
-## Response to message sending
-RESP_SEND_MSG
-Status: OK
+    Message
 
-## Response to message receiving
-NO_NEW_MSG
-Status: NOT_IN_ROOM / NO_NEW_MSG
+#### RESP_LIST_ROOMS > Rooms
 
-or
+由 `\n` 分隔的若干房间名。
 
-NEW_MSG
+    Room0\n
+    Room1\n
+    ...
 
-$From\t$Time\t$Content-Length\t\t
+#### RESP_LIST_MEMBERS > Members
+
+由 `\n` 分隔的若干用户名。
+
+    Member0\n
+    Member1\n
+    ...
+
+#### NEW_MSG > Messages
+
+由 `\n` 分隔的若干行消息，每行消息含发送方、发送时间、消息内容，由`\t`分隔。
+
+    From\tTime\tContent\n
+    From\tTime\tContent\n
+    ...
