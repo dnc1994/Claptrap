@@ -8,7 +8,7 @@ Claptrap 是应用层的字符串协议，每个包由 12 字节的 Header 和不定长度的 Payload 组
 
 ## Header
 
-Header 由 8 个字节的 CLAPTRAP （协议标识）和 4 个字节的 `Packet-Length` 组成。
+Header 由 8 个字节的 CLAPTRAP （协议标识）和 4 个字节的 `Packet-Length` 域组成。
 
 ## Payload
 
@@ -21,9 +21,11 @@ Payload 基本格式如下：
     /n
     Content
 
-也就是第一行指定协议方法，接下来若干行指定一系列参数，再间隔一个空行后是内容域。
+也就是第一行指定方法，接下来若干行给出一系列参数，再间隔一个空行后是内容域。
 
 所有带有内容域的包均有 Content-Length 参数来验证长度。
+
+下面列出所有请求和响应的格式，每个方法或是参数的含义根据其名字应该是很明确的。
 
 ### Client
 
@@ -43,14 +45,14 @@ Payload 基本格式如下：
 | Response Method | Possible Status | Parameters | Content |
 | --------------- | --------------- | ---------- | ------- |
 | RESP_LOGIN | OK / AUTH_FAILED | {Status} | None |
-| RESP_LOGOUT | OK | {Status} | None |
-| RESP_LIST_ROOMS | OK | {Status, Content-Length} | Rooms |
-| RESP_LIST_MEMBERS | OK / NOT_IN_ROOM | {Status, Content-Length} | Members |
-| RESP_JOIN_ROOM | OK / NO_SUCH_ROOM | {Status} | None |
-| RESP_EXIT_ROOM | OK / NOT_IN_ROOM | {Status} | None |
-| RESP_SEND_MSG | OK / NOT_IN_ROOM | {Status} | None |
-| NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG | None |
-| NEW_MSG | OK | {Status, Content-Length} | Messages |
+| RESP_LOGOUT | OK / NOT_LOGIN | {Status} | None |
+| RESP_LIST_ROOMS | OK / NOT_LOGIN | {Status, Content-Length} | Rooms |
+| RESP_LIST_MEMBERS | OK / NOT_IN_ROOM / NOT_LOGIN | {Status, Content-Length} | Members |
+| RESP_JOIN_ROOM | OK / NO_SUCH_ROOM / NOT_LOGIN | {Status} | None |
+| RESP_EXIT_ROOM | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
+| RESP_SEND_MSG | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
+| NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG / NOT_LOGIN | None |
+| NEW_MSG | OK / NOT_LOGIN | {Status, Content-Length} | Messages |
 
 ### Content Formats
 
