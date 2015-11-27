@@ -3,10 +3,9 @@ import socket
 import libchat
 from commons import *
 
-
 HOST = '127.0.0.1'
 PORT = '6666'
-BUF_SIZE = 1024
+
 
 class ChatClient(object):
     def __init__(self, host=HOST, port=PORT):

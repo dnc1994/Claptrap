@@ -44,7 +44,7 @@ class ChatWindow(QtGui.QMainWindow):
         self.roomlist_timer.setInterval(5000)
         self.roomlist_timer.timeout.connect(self.update_roomlist)
         self.memberlist_timer = QtCore.QTimer(self)
-        self.memberlist_timer.setInterval(2000)
+        self.memberlist_timer.setInterval(5000)
         self.memberlist_timer.timeout.connect(self.update_memberlist)
         self.messages_timer = QtCore.QTimer(self)
         self.messages_timer.setInterval(1000)

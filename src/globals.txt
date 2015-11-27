@@ -1,0 +1,9 @@
+root 123
+xiaoming 123
+xiaohong 123
+xiaowang 123
+江主席 123
+张宝华 123
+
+test_room
+香港记者招待会

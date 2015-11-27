@@ -1,4 +1,5 @@
 # -*- encoding:utf-8 -*-
+import sys
 import socket
 import threading
 import select
@@ -7,17 +8,15 @@ import datetime
 import libchat
 from commons import *
 
+HOST = ''
+PORT = 6666
+MAX_ONLINE = 5
+
+server_count = 0
+
 
 def get_server_time_obj():
     return datetime.datetime.now()
-
-
-HOST = ''
-PORT = 6666
-BUFF_SIZE = 1024
-
-
-server_count = 0
 
 
 class ChatServer(threading.Thread):
@@ -202,7 +201,7 @@ class ChatServer(threading.Thread):
                 return
 
 
-def init_globals():
+def _init_globals():
     global accounts
     global rooms
 
@@ -226,7 +225,39 @@ def init_globals():
         rooms[r]['messages'] = []
 
 
-def main():
+def init_globals():
+    global accounts
+    global rooms
+
+    _accounts = {}
+    _rooms = []
+
+    with open('globals.txt', 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line == '':
+                break
+            u, p = line.split(' ')
+            _accounts[u] = p
+
+        for line in f:
+            line = line.strip()
+            if line == '':
+                break
+            r = line
+            _rooms.append(r)
+
+    for (u, p) in _accounts.iteritems():
+        accounts[u] = {}
+        accounts[u]['password'] = hashlib.sha1(p).hexdigest()
+
+    for r in _rooms:
+        rooms[r] = {}
+        rooms[r]['members'] = ['root']
+        rooms[r]['messages'] = []
+
+
+def main(port=PORT, max_online=MAX_ONLINE):
     global accounts
     global clients
     global rooms
@@ -234,13 +265,16 @@ def main():
     clients = {}
     rooms = {}
 
-    # todo: load from db
-    init_globals()
+    try:
+        init_globals()
+    except:
+        print 'Error while loading globals. Please check globals.txt'
+        exit()
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen(5)
+    server_socket.bind((HOST, port))
+    server_socket.listen(max_online)
 
     CONNECTION_LIST = []
     CONNECTION_LIST.append(server_socket)
@@ -257,7 +291,16 @@ def main():
 
 if __name__ == '__main__':
     try:
-        print 'Server started'
-        main()
+        port = int(sys.argv[1])
+    except:
+        port = PORT
+    try:
+        max_online = int(sys.argv[2])
+    except:
+        max_online = MAX_ONLINE
+
+    try:
+        print 'Server started at port {1}'.format(HOST, port, max_online)
+        main(port)
     except KeyboardInterrupt:
         print 'Server terminating...'

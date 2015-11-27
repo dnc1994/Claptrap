@@ -1,11 +1,7 @@
 # -*- encoding:utf-8 -*-
 import socket
 import struct
-import logging
 from commons import *
-
-
-logger = logging.getLogger('chat')
 
 
 # Receive $length bytes data from buffer
@@ -18,7 +14,6 @@ def recv_all(sock, length):
         part = sock.recv(length - received)
         if len(part) == 0:
             # packet length not matched
-            logger.debug('Socket recv EOF')
             raise socket.error('Socket recv EOF')
         data += part
         received += len(part)

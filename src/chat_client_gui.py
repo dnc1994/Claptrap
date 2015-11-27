@@ -1,7 +1,6 @@
 # -*- encoding:utf-8 -*-
 import sys
 from PyQt4 import QtGui
-from chat_client import ChatClient
 from login_dialog import LoginDialog
 from chat_window import ChatWindow
 
