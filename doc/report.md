@@ -60,7 +60,7 @@ Payload 基本格式如下：
 | RESP_EXIT_ROOM | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
 | RESP_SEND_MSG | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
 | NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG / NOT_LOGIN | None |
-| NEW_MSG | OK / NOT_LOGIN | {Status, Content-Length} | Messages |
+| NEW_MSG | OK | {Status, Content-Length} | Messages |
 
 #### Content Formats
 

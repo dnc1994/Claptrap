@@ -62,9 +62,10 @@ class LoginDialog(QtGui.QDialog):
 
         login_resp = self.client.login(username, password)
         if not login_resp:
-            QtGui.QMessageBox.warning(self, 'Login Failed', 'Wrong username or password.')
+            QtGui.QMessageBox.warning(self, 'Login Failed', 'Wrong username/password. Or the user has already logged in.')
             return
 
+        self.client.username = username
         self.callback_window.client = self.client
         print 'login OK'
         self.accept()

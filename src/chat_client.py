@@ -12,23 +12,14 @@ class ChatClient(object):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = str(host)
         port = int(port)
-        print 'connect to {0}:{1}'.format(host, port)
+        print 'connecting to {0}:{1}'.format(host, port)
         self.sock.connect((host, port))
         self.logined = False
+        self.username = ''
         self.current_room = ''
-        self.handlers = {
-            'LOGIN': self.login,
-            'LOGOUT': self.logout,
-            'CREATE_ROOM': self.create_room,
-            'LIST_ROOMS': self.list_rooms,
-            'LIST_MEMBERS': self.list_members,
-            'JOIN_ROOM': self.join_room,
-            'EXIT_ROOM': self.exit_room,
-            'SEND_MSG': self.send_msg,
-            'RECV_MSG': self.recv_msg
-        }
 
     def send_req(self, method, params=None, content=None):
+        print 'prepare to send request {0}'.format(method)
         if 'Content' in REQUEST_PARAMS[method]:
             try:
                 assert params
@@ -36,6 +27,7 @@ class ChatClient(object):
                 params = {}
             assert content
             params['Content-Length'] = len(content)
+
         req = [method]
         req += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
         req += ['\n{0}'.format(content)] if content else []
@@ -66,7 +58,10 @@ class ChatClient(object):
         username = self.encode_string(username)
         method, params = self.send_req(method='LOGIN', params={'Username': username, 'Password': password})
         print 'response:', method, params
-        assert method == 'RESP_LOGIN'
+        try:
+            assert method == 'RESP_LOGIN'
+        except:
+            return
         if params['Status'] == 'OK':
             self.logined = True
             return True
@@ -77,73 +72,124 @@ class ChatClient(object):
 
     def logout(self):
         method, params = self.send_req(method='LOGOUT')
-        assert method == 'RESP_LOGOUT'
-        assert params['Status'] == 'OK'
+        try:
+            assert method == 'RESP_LOGOUT'
+        except:
+            return
+        if params['Status'] == 'OK':
+            return True
+        elif params['Status'] == 'NOT_LOGIN':
+            return False
+        else:
+            raise BadStatusException
 
-    def create_room(self, room_name):
-        room_name = self.encode_string(room_name)
-        method, params = self.send_req(method='CREATE_ROOM', params={'Room-Name': room_name})
-        assert method == 'RESP_CREATE_ROOM'
-        assert params['Status'] == 'OK'
+    # def create_room(self, room_name):
+    #     room_name = self.encode_string(room_name)
+    #     method, params = self.send_req(method='CREATE_ROOM', params={'Room-Name': room_name})
+    #     try:
+    #         assert method == 'RESP_CREATE_ROOM'
+    #     except:
+    #         return
+    #     if params['Status'] == 'OK':
+    #         return True
+    #     elif params['Status'] in ['NOT_IN_ROOM', 'NOT_LOGIN']:
+    #         return False
+    #     else:
+    #         raise BadStatusException
 
     def list_rooms(self):
         method, params = self.send_req(method='LIST_ROOMS')
-        print 'client -> list_rooms -> resp >>'
-        print method, params
-        assert method == 'RESP_LIST_ROOMS'
-        assert params['Status'] == 'OK'
-        room_list = map(self.decode_string, params['Content'].split('\n'))
-        return room_list
+        # print 'client -> list_rooms -> resp >>'
+        try:
+            assert method == 'RESP_LIST_ROOMS'
+        except:
+            return
+        if params['Status'] == 'OK':
+            room_list = map(self.decode_string, params['Content'].split('\n'))
+            return room_list
+        elif params['Status'] == 'NOT_LOGIN':
+            return None
+        else:
+            raise BadStatusException
 
     def list_members(self):
         method, params = self.send_req(method='LIST_MEMBERS')
-        assert method == 'RESP_LIST_MEMBERS'
-        assert params['Status'] == 'OK'
-        member_list = map(self.decode_string, params['Content'].split('\n'))
-        return member_list
+        try:
+            assert method == 'RESP_LIST_MEMBERS'
+        except:
+            return
+        if params['Status'] == 'OK':
+            member_list = map(self.decode_string, params['Content'].split('\n'))
+            return member_list
+        elif params['Status'] in ['NOT_IN_ROOM', 'NOT_LOGIN']:
+            return None
+        else:
+            raise BadStatusException
 
     def join_room(self, room_name):
         room_name = self.encode_string(room_name)
         method, params = self.send_req(method='JOIN_ROOM', params={'Room-Name': room_name})
-        assert method == 'RESP_JOIN_ROOM'
-        assert params['Status'] == 'OK'
-        self.current_room = room_name
+        try:
+            assert method == 'RESP_JOIN_ROOM'
+        except:
+            return
+        if params['Status'] == 'OK':
+            self.current_room = room_name
+            return True
+        elif params['Status'] in ['NO_SUCH_ROOM', 'NOT_LOGIN']:
+            return False
+        else:
+            raise BadStatusException
 
     def exit_room(self):
         method, params = self.send_req(method='EXIT_ROOM')
-        assert method == 'RESP_EXIT_ROOM'
-        assert params['Status'] == 'OK'
+        try:
+            assert method == 'RESP_EXIT_ROOM'
+        except:
+            return
+        if params['Status'] == 'OK':
+            return True
+        elif params['Status'] in ['NOT_IN_ROOM', 'NOT_LOGIN']:
+            return False
+        else:
+            raise BadStatusException
 
     def send_msg(self, message):
         message = self.encode_string(message)
         # escape \t because later will use \t to split message attributes
         message = message.replace('\t', '    ')
         method, params = self.send_req(method='SEND_MSG', content=message)
-        assert method == 'RESP_SEND_MSG'
-        assert params['Status'] == 'OK'
+        try:
+            assert method == 'RESP_SEND_MSG'
+        except:
+            return
+        if params['Status'] == 'OK':
+            return True
+        elif params['Status'] in ['NOT_IN_ROOM', 'NOT_LOGIN']:
+            return False
+        else:
+            raise BadStatusException
 
     def recv_msg(self):
         method, params = self.send_req(method='RECV_MSG')
-        print 'method = {0}'.format(method)
+        try:
+            assert method in ['NO_NEW_MSG', 'NEW_MSG']
+        except:
+            return
         if method == 'NO_NEW_MSG':
-            return None
+            if params['Status'] in ['NOT_IN_ROOM', 'NO_NEW_MSG', 'NOT_LOGIN']:
+                return None
+            else:
+                raise BadStatusException
         elif method == 'NEW_MSG':
-            messages = map(self.decode_string, params['Content'].split('\t\t'))
-            return messages
-        else:
-            raise BadMethodException
-
-    def dispatch(self, event):
-        print 'dispatching event: {0}'.format(event)
-        self.handlers[event]()
-
-    def loop(self):
-        while True:
-            # Wait for user event
-            event = ''
-            self.dispatch(event)
+            if params['Status'] == 'OK':
+                messages = map(self.decode_string, params['Content'].split('\t\t'))
+                return messages
+            else:
+                raise BadStatusException
 
 
+# obsolete
 def test():
     client = ChatClient()
 
@@ -195,6 +241,7 @@ def test():
     msg_list = client.recv_msg()
     print msg_list
     print '======================='
+
 
 if __name__ == '__main__':
     test()

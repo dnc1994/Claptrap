@@ -22,14 +22,11 @@ def get_server_time_obj():
 class ChatServer(threading.Thread):
     def __init__(self, conn, addr):
         super(ChatServer, self).__init__()
-
-        global  server_count
+        global server_count
         server_count += 1
-        print 'server #%d started' % (server_count)
-
+        print 'server #{0} started'.format(server_count)
         self.conn = conn
         self.addr = addr
-        self.ip = self.addr[0]
         self.logined = False
         self.username = ''
         self.current_room = ''
@@ -37,7 +34,7 @@ class ChatServer(threading.Thread):
         self.handlers = {
             'LOGIN': self.login,
             'LOGOUT': self.logout,
-            'CREATE_ROOM': self.create_room,
+            # 'CREATE_ROOM': self.create_room,
             'LIST_ROOMS': self.list_rooms,
             'LIST_MEMBERS': self.list_members,
             'JOIN_ROOM': self.join_room,
@@ -47,7 +44,7 @@ class ChatServer(threading.Thread):
         }
 
     def send_resp(self, method, params=None, content=None):
-        print 'prepare to send response: ' + method
+        print 'prepare to send response {0}'.format(method)
         if 'Content' in RESPONSE_PARAMS[method]:
             try:
                 assert params
@@ -55,6 +52,7 @@ class ChatServer(threading.Thread):
                 params = {}
             assert content
             params['Content-Length'] = len(content)
+
         resp = [method]
         resp += ['{0}: {1}'.format(k, v) for (k, v) in params.iteritems()] if params else []
         resp += (['\n{0}'.format(content)] if content else [])
@@ -66,72 +64,75 @@ class ChatServer(threading.Thread):
         except socket.error as e:
             raise
 
-    # todo: sign up
     def login(self, params):
         global accounts
         global clients
         username = params['Username']
         pass_digest = hashlib.sha1(params['Password']).hexdigest()
-        if not accounts.has_key(username) or accounts[username]['password'] != pass_digest:
+        if not accounts.has_key(username) or clients.has_key(username) or accounts[username]['password'] != pass_digest:
             self.send_resp(method='RESP_LOGIN', params={'Status': 'AUTH_FAILED'})
         else:
             self.send_resp(method='RESP_LOGIN', params={'Status': 'OK'})
+            self.logined = True
             self.username = username
             clients[username] = self.username
-            self.logined = True
 
     # todo: CLEAN UP
     def logout(self, params):
-        print 'prepare to logout'
         if not self.logined:
+            self.send_resp(method='RESP_LOGOUT', params={'Status': 'NOT_LOGIN'})
             return
         global clients
         global rooms
-        del clients[self.username]
         rooms[self.current_room]['members'].remove(self.username)
+        del clients[self.username]
         self.send_resp(method='RESP_LOGOUT', params={'Status': 'OK'})
 
-    def create_room(self, params):
-        global rooms
-        room_name = params['Room-Name']
-        print 'creating room' + room_name
-        if rooms.has_key(room_name):
-            self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'ROOM_NAME_EXISTED'})
-        else:
-            print 'room created'
-            rooms[room_name] = {'members': [], 'messages': []}
-            self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'OK'})
+    # def create_room(self, params):
+    #     global rooms
+    #     room_name = params['Room-Name']
+    #     if rooms.has_key(room_name):
+    #         self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'ROOM_NAME_EXISTED'})
+    #     else:
+    #         rooms[room_name] = {'members': [], 'messages': []}
+    #         self.send_resp(method='RESP_CREATE_ROOM', params={'Status': 'OK'})
 
     def list_rooms(self, params):
-        print 'listing rooms'
+        if not self.logined:
+            self.send_resp(method='RESP_LIST_ROOMS', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         room_list = rooms.keys()
         content = '\n'.join([r + '\t' + str(len(rooms[r]['members'])) for r in room_list])
-        for r in room_list:
-            print len(rooms[r]['members'])
-        print content
         self.send_resp(method='RESP_LIST_ROOMS', params={'Status': 'OK'}, content=content)
 
     def list_members(self, params):
+        if not self.logined:
+            self.send_resp(method='RESP_LIST_ROOMS', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         member_list = rooms[self.current_room]['members']
         content = '\n'.join(member_list)
         self.send_resp(method='RESP_LIST_MEMBERS', params={'Status': 'OK'}, content=content)
 
     def join_room(self, params):
-        # print 'joining rooms'
+        if not self.logined:
+            self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         room_name = params['Room-Name']
         if not rooms.has_key(room_name):
             self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'NO_SUCH_ROOM'})
         else:
-            print 'adding to member list'
             rooms[room_name]['members'].append(self.username)
             self.current_room = room_name
             self.last_recv_msg = get_server_time_obj()
             self.send_resp(method='RESP_JOIN_ROOM', params={'Status': 'OK'})
 
     def exit_room(self, params):
+        if not self.logined:
+            self.send_resp(method='RESP_EXIT_ROOM', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         if self.current_room == '':
             self.send_resp(method='RESP_EXIT_ROOM', params={'Status': 'NOT_IN_ROOM'})
@@ -141,39 +142,38 @@ class ChatServer(threading.Thread):
             self.send_resp(method='RESP_EXIT_ROOM', params={'Status': 'OK'})
 
     def send_msg(self, params):
-        print 'sending message'
+        if not self.logined:
+            self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         room_name = self.current_room
         assert room_name
-        print room_name
         message = params['Content']
-        print message
         rooms[room_name]['messages'].append({'From': self.username, 'Time': get_server_time_obj(), 'Message': message})
         self.send_resp(method='RESP_SEND_MSG', params={'Status': 'OK'})
 
     def recv_msg(self, params):
+        if not self.logined:
+            self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_LOGIN'})
+            return
         global rooms
         if self.current_room == '':
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NOT_IN_ROOM'})
             return
         room_name = self.current_room
-        print 'room name = {0}'.format(room_name)
         messages = []
         for index in reversed(range(len(rooms[room_name]['messages']))):
             msg = rooms[room_name]['messages'][index]
-            print 'message time: {0}'.format(msg['Time'])
-            print 'last recv time: {0}'.format(self.last_recv_msg)
+            # print 'message time: {0}'.format(msg['Time'])
+            # print 'last recv time: {0}'.format(self.last_recv_msg)
             if msg['Time'] < self.last_recv_msg:
-                print 'scrolling message break'
                 break
             messages = [msg] + messages
         print '{0} new message'.format(len(messages))
-        print messages
         if not messages:
             self.send_resp(method='NO_NEW_MSG', params={'Status': 'NO_NEW_MSG'})
             return
         content = '\t\t'.join(['{0}\t{1}\t{2}'.format(m['From'], m['Time'].ctime(), m['Message']) for m in messages])
-        print content
         self.last_recv_msg = get_server_time_obj()
         self.send_resp(method='NEW_MSG', params={'Status': 'OK'}, content=content)
 
@@ -181,9 +181,8 @@ class ChatServer(threading.Thread):
         method, params = req
         print '\ndispatching request: {0}'.format(method)
         if method in PARSE_EXCEPTIONS:
-            raise
+            raise Exception('ParseException: {0}'.format(method))
         self.handlers[method](params)
-        # todo: write to db
 
     def run(self):
         while True:
@@ -194,7 +193,7 @@ class ChatServer(threading.Thread):
                         packet_data = libchat.recv_packet(self.conn)
                         self.dispatch(libchat.parse(packet_data, libchat.REQUEST))
                 except:
-                    print 'disconnected.'
+                    print 'client disconnected, server exiting...'
                     self.logout(None)
                     return
             except:
@@ -275,16 +274,15 @@ def main(port=PORT, max_online=MAX_ONLINE):
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((HOST, port))
     server_socket.listen(max_online)
-
-    CONNECTION_LIST = []
-    CONNECTION_LIST.append(server_socket)
+    connection_list = []
+    connection_list.append(server_socket)
 
     while True:
-        read_sockets, write_sockets, error_sockets = select.select(CONNECTION_LIST,[],[])
+        read_sockets, write_sockets, error_sockets = select.select(connection_list,[],[])
         for sock in read_sockets:
             if sock == server_socket:
                 conn, addr = server_socket.accept()
-                CONNECTION_LIST.append(conn)
+                connection_list.append(conn)
                 server = ChatServer(conn, addr)
                 server.start()
 

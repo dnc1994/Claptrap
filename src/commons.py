@@ -4,7 +4,7 @@ RESPONSE = 1
 REQUEST_PARAMS = {
     'LOGIN': ['Username', 'Password'],
     'LOGOUT': [],
-    'CREATE_ROOM': ['Room-Name'],
+    # 'CREATE_ROOM': ['Room-Name'],
     'LIST_ROOMS': [],
     'LIST_MEMBERS': [],
     'JOIN_ROOM': ['Room-Name'],
@@ -16,7 +16,7 @@ REQUEST_METHODS = REQUEST_PARAMS.keys()
 RESPONSE_PARAMS = {
     'RESP_LOGIN': ['Status'],
     'RESP_LOGOUT': ['Status'],
-    'RESP_CREATE_ROOM': ['Status'],
+    # 'RESP_CREATE_ROOM': ['Status'],
     'RESP_LIST_ROOMS': ['Status', 'Content', 'Content-Length'],
     'RESP_LIST_MEMBERS': ['Status', 'Content', 'Content-Length'],
     'RESP_JOIN_ROOM': ['Status'],
@@ -31,10 +31,15 @@ CONSTANTS = [(REQUEST_METHODS, REQUEST_PARAMS), (RESPONSE_METHODS, RESPONSE_PARA
 
 
 class BadProtocolException(Exception):
-    pass
+    def __init__(self):
+        raise Exception('Bad Protocol')
+
 
 class BadMethodException(Exception):
-    pass
+    def __init__(self):
+        raise Exception('Bad Method')
+
 
 class BadStatusException(Exception):
-    pass
+    def __init__(self):
+        raise Exception('Bad Status')

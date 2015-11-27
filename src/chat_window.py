@@ -81,11 +81,12 @@ class ChatWindow(QtGui.QMainWindow):
         self.message_editor.clear()
 
     def update_title(self):
+        title = u'[User: {0}] '.format(self.client.username)
         if self.client.current_room:
             # only need decoding here
-            title = 'Room: ' + self.client.current_room.decode('utf-8')
+            title += 'Room: ' + self.client.current_room.decode('utf-8')
         else:
-            title = 'Claptrap'
+            title += 'Claptrap'
         self.setWindowTitle(title)
 
     @QtCore.pyqtSlot()
