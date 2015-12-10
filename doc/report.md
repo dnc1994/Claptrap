@@ -1,5 +1,9 @@
 # Computer Networks Project Report
 
+章凌豪
+
+13307130225@fudan.edu.cn
+
 ## Overview
 
 本次 Project 用 Python 2.7 开发。
@@ -59,7 +63,7 @@ Payload 基本格式如下：
 | RESP_JOIN_ROOM | OK / NO_SUCH_ROOM / NOT_LOGIN | {Status} | None |
 | RESP_EXIT_ROOM | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
 | RESP_SEND_MSG | OK / NOT_IN_ROOM / NOT_LOGIN | {Status} | None |
-| NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG / NOT_LOGIN | None |
+| NO_NEW_MSG | NOT_IN_ROOM / NO_NEW_MSG / NOT_LOGIN | {Status} | None |
 | NEW_MSG | OK | {Status, Content-Length} | Messages |
 
 #### Content Formats
