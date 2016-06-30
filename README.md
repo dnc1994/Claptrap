@@ -166,7 +166,7 @@ Payload 基本格式如下：
         packet_data = protocol + length + data
         return packet_data
 
-再使用 `socket.sendall(packetify(data))' 发送即可。
+再使用 `socket.sendall(packetify(data))` 发送即可。
 
 ### Server Class
 
